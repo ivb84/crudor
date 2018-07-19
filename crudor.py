@@ -8,7 +8,6 @@ from   bs4 import BeautifulSoup
 pereprava_url = 'http://ois.krudor.ru/oi/'
 
 
-print 'qwerty'
 
 def write_to_excel(items, fname):
     wb = xlwt.Workbook()
