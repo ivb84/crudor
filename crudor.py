@@ -10,7 +10,6 @@ from   bs4 import BeautifulSoup
 # URL шаблон для подгрузки данных
 pereprava_url = 'http://ois.krudor.ru/oi/'
 
-print 'ok2'
 
 def write_to_excel(items, fname):
     wb = xlwt.Workbook()
