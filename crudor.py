@@ -7,6 +7,7 @@ from   bs4 import BeautifulSoup
 # URL шаблон для подгрузки данных
 pereprava_url = 'http://ois.krudor.ru/oi/'
 
+print 'I am an echo of your past'
 
 
 def write_to_excel(items, fname):
