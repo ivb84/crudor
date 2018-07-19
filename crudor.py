@@ -137,4 +137,4 @@ if __name__=='__main__':
                 
 
     print 'Save CHS to file...'
-    write_to_excel(rows,'chs.xls')
+    write_to_excel(rows,prefix+'chs.xls')
