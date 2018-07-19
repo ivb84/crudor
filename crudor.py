@@ -7,7 +7,7 @@ from   bs4 import BeautifulSoup
 
 # URL шаблон для подгрузки данных
 pereprava_url = 'http://ois.krudor.ru/oi/'
-
+prefix = '/home/ivb/crudor/'
 
 def write_to_excel(items, fname):
     wb = xlwt.Workbook()
@@ -27,6 +27,8 @@ def write_to_excel(items, fname):
 
 
 if __name__=='__main__':
+    
+    print 'new version'
     
     # Подгружаем всю страницу КРУДОР
     html = requests.get(pereprava_url, auth=('mchs_monitoring','kyDCc0')).content        
@@ -56,7 +58,7 @@ if __name__=='__main__':
                 
 
     print 'Save pereprava to file...'
-    write_to_excel(rows,'pereprava.xls')
+    write_to_excel(rows,prefix+'pereprava.xls')
 
 
 
@@ -83,7 +85,7 @@ if __name__=='__main__':
                 
 
     print 'Save zimniki to file...'
-    write_to_excel(rows,'zimniki.xls')
+    write_to_excel(rows,prefix+'zimniki.xls')
 
 
     #************************ДТП**********************************************
@@ -109,7 +111,7 @@ if __name__=='__main__':
                 
 
     print 'Save DTP to file...'
-    write_to_excel(rows,'dtp.xls')
+    write_to_excel(rows,prefix+'dtp.xls')
 
 
     #************************ЧС**********************************************
