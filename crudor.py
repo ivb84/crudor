@@ -4,6 +4,7 @@ import requests
 import xlwt
 from   bs4 import BeautifulSoup
 
+
 # URL шаблон для подгрузки данных
 pereprava_url = 'http://ois.krudor.ru/oi/'
 
