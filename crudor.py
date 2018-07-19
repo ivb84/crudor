@@ -7,7 +7,7 @@ from   bs4 import BeautifulSoup
 
 # URL шаблон для подгрузки данных
 pereprava_url = 'http://ois.krudor.ru/oi/'
-prefix = '/home/ivb/crudor/'
+prefix = '/home/valera/crudor/'
 
 def write_to_excel(items, fname):
     wb = xlwt.Workbook()
@@ -29,7 +29,7 @@ def write_to_excel(items, fname):
 if __name__=='__main__':
     
     print 'new version'
-    
+
     # Подгружаем всю страницу КРУДОР
     html = requests.get(pereprava_url, auth=('mchs_monitoring','kyDCc0')).content        
     soup = BeautifulSoup(html, "html.parser")
