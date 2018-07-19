@@ -28,10 +28,6 @@ def write_to_excel(items, fname):
 
 if __name__=='__main__':
     
-    f = open(prefix + 'test.txt', 'a')
-    f.write('new line' + '\n')
-    f.close()
-
     # Подгружаем всю страницу КРУДОР
     html = requests.get(pereprava_url, auth=('mchs_monitoring','kyDCc0')).content        
     soup = BeautifulSoup(html, "html.parser")
