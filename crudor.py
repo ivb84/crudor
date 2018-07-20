@@ -69,8 +69,8 @@ status_sprav = {
 
 # URL шаблон для подгрузки данных
 pereprava_url = 'http://ois.krudor.ru/oi/'
-prefix = '/home/valera/crudor/'
-#prefix = '/home/ivb/crudor/'
+#prefix = '/home/valera/crudor/'
+prefix = '/home/ivb/crudor/'
 
 
 def write_to_excel(items, fname):
@@ -104,7 +104,7 @@ def generate_xml():
     trs = tab_zimnik.find_all('tr')
 
     # Generate XML document...
-    print '\nGenerate XML document...'
+    print '\nGenerate XML document2...'
     root = etree.Element('zimnik_list')
 
     
