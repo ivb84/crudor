@@ -1,12 +1,13 @@
 #coding: utf-8
 
-import xlwt
+import sys
 import requests
 import datetime
-from   lxml import etree
+import cx_Oracle
 from   bs4 import BeautifulSoup
 
 
+#-----Winter Roads dictionary----------------
 zimniki_sprav = {'Подъезд к п. Тулень':1,
                 'Ельники - Хайрюзовка':2,
                 'Шиверский - Хребтовый':3,
@@ -34,15 +35,17 @@ zimniki_sprav = {'Подъезд к п. Тулень':1,
                 'Ильинка - Южная Тунгуска':25,
                 'Тиличеть-Кедровый':26,
                 'Южная Тунгуска - Сосновка':27,
-                'Кетский - Чайда':28,
-                'Кирсантьево-Устье-Машуковка':29,
-                'Тасеево - Усть-Кайтым':30,
-                'Роща-Пинчино':31,
-                'Никольское-Речка':32,
-                'Бор-Верхнеимбатск':33,
+                'Мендельский-Малая Кеть':28,
+                'Кетский - Чайда':29,
+                'Кирсантьево-Устье-Машуковка':30,
+                'Тасеево - Усть-Кайтым':31,
+                'Роща-Пинчино':32,
+                'Никольское-Речка':33,
+                'Бор-Верхнеимбатск':34,
 
 }
 
+#--------Rayon codes dictionary-------------------
 rayon_sprav = {
     'Туруханский':   '04254000000',
     'Уярский':       '04257501000',
@@ -60,57 +63,52 @@ rayon_sprav = {
     'Иланский':      '04218000000',
 }
 
+
+#----State dictionary-----------
 status_sprav = {
-    'Закрыта':0,
     'Открыта':1,
+    'Закрыта':2,
+    
 
 }
 
 
-# URL шаблон для подгрузки данных
+# URL for data download
 pereprava_url = 'http://ois.krudor.ru/oi/'
-#prefix = '/home/valera/crudor/'
-prefix = '/home/ivb/crudor/'
 
 
-def write_to_excel(items, fname):
-    wb = xlwt.Workbook()
-    ws = wb.add_sheet('Лист'.decode('utf8'))
+def generate_zimnik_records():
+    """Generate Winter roads data"""
+    # Oracle server parameters
+    ora_user  = 'm4c'
+    ora_pass  = 'm4c'
+    ora_ip    = '195.112.255.99'
+    ora_port  =  1521
+    ora_SID   = 'oracle11'
+    oratable = 'data_test'
 
-    row = 0
-    for item in items:
-        cell = 0
-        for elem in item:
-            ws.write(row, cell, elem.decode('utf8'))
-            cell+=1
-        row+=1
+    # Get current data
+    today = datetime.date.today().strftime("%Y-%m-%d")
 
-    # Сохраняем в Excel
-    wb.save(fname)
-
-
-
-def generate_xml():
-    """Generate XML data files"""
-
-    # Подгружаем всю страницу КРУДОР
+    # Download Crudor data page
     html = requests.get(pereprava_url, auth=('mchs_monitoring','kyDCc0')).content        
     soup = BeautifulSoup(html, "html.parser")
 
     
-    #*********************ЗИМНИКИ*****************************************************
-    # Получаем объекты из таблицы Зимники
+    #*********************WINTER ROADS**************************************************
     tab_zimnik = soup.find_all("table", { "id" : "winter_in_plan_list" }).pop()
     trs = tab_zimnik.find_all('tr')
 
-    # Generate XML document...
-    print '\nGenerate XML document2...'
-    root = etree.Element('zimnik_list')
+    
+    
+    # Connect to Oracle
+    dsn_tns = cx_Oracle.makedsn(ora_ip, ora_port, ora_SID)
+    db  = cx_Oracle.connect(ora_user, ora_pass, dsn_tns)
+    cur = db.cursor()
 
     
-    # Итерируем по таблице Переправа
-    zimnik_id = 1
-
+    # Iterate over data table
+    counter=0
     for tr in trs:
         tr_len = len(tr.find_all('td')) 
         if tr_len==1 or tr_len<4: 
@@ -128,156 +126,152 @@ def generate_xml():
             b = rayon.find(')')        
             rayon = rayon[a+1:b]
             
-            
-            zimnik = etree.SubElement(root, "zimnik", id=str(zimnik_id))
-  
+
+            # Get zimnik_id
             try:
-                #print '\nold title2 - %s' % (title)
-                title = str(zimniki_sprav[title])
-                #print 'new title2 - %s' % (title)
-            except:
-                title = 'unknown'
-            
+                zimnik_id = zimniki_sprav[title]
+            except KeyError:
+                sys.exit(1)
+
+            # Get status_id
             try:
-                rayon_okato = str(rayon_sprav[rayon])
-            except:
-                rayon_okato = 'unknown'
+                status_id = status_sprav[status]
+            except KeyError:
+                sys.exit(1)
+                
+            # Check is this the first row for this date and road ID
+            query = """select count(*) from %s where id_zimn=%s and dt=to_date('%s', 'yyyy-mm-dd')""" % (oratable,zimnik_id, today)
+            cur.execute(query)
+            n = cur.fetchone()[0]
             
-            try:
-                status = str(status_sprav[status])
-            except:
-                status = 'unknown'
+            if n==0: 
+                print 'make insert'
+                query = """insert into %s (id_zimn,id_state,dt) values (%s,%s,to_date('%s', 'yyyy-mm-dd'))""" % (oratable,zimnik_id,status_id,today)
+            else:
+                print 'make update'
+                query = """update %s set id_state=%s  where id_zimn=%s and dt=to_date('%s', 'yyyy-mm-dd')""" % (oratable, status_id, zimnik_id, today)
 
+            # Do query 
+            cur.execute(query)
+        
 
-            etree.SubElement(zimnik, "title").text  = title.decode('utf-8')
-            etree.SubElement(zimnik, "rayon").text  = rayon_okato.decode('utf-8')
-            etree.SubElement(zimnik, "status").text = status.decode('utf-8')
-
-            # Next zimnik ID
-            zimnik_id+=1
-
-
-
-    #-----------------------Save to XML file----------------------
-    today = datetime.date.today().strftime("%Y%m%d")
-    out = etree.tostring(root, pretty_print=True, encoding='utf-8', xml_declaration=True)
-    xml_out = open('crudor_%s.xml' % (today), 'w')
-    xml_out.write(out)
-    xml_out.close()
+    # Close connection
+    db.commit()
+    cur.close()
+    db.close()
 
 
 
-    
 
-if __name__=='__main__':
-    
-    generate_xml()
-
-    # # Подгружаем всю страницу КРУДОР
-    # html = requests.get(pereprava_url, auth=('mchs_monitoring','kyDCc0')).content        
-    # soup = BeautifulSoup(html, "html.parser")
-    
-
-    # #**************************ПЕРЕПРАВЫ************************************************
-    # # Получаем объекты из таблицы Переправа
-    # tab_pereprava = soup.find_all("table", { "id" : "bridges_in_plan_list" }).pop()
-    # trs = tab_pereprava.find_all('tr')
-    
-    # # Массив распарсенных значений из таблицы Переправа
-    # rows = []
-    # # Итерируем по таблице Переправа
-    # for tr in trs:
-    #     if len(tr.find_all('td'))==1: 
-    #         continue
-    #     else:
-    #         try:
-    #             row=[]
-    #             for i in range(0,8):
-    #                 cell = tr.find_all('td')[i].text.lstrip().rstrip().encode('utf8')
-    #                 row.append(cell)
-    #             rows.append(row) 
-    #         except:
-    #             pass
-                
-
-    # print 'Save pereprava to file...'
-    # write_to_excel(rows,prefix+'pereprava.xls')
+# Generate DB records for winter roads...
+generate_zimnik_records()
 
 
-
-    # #*********************ЗИМНИКИ*****************************************************
-    # # Получаем объекты из таблицы Зимники
-    # tab_zimnik = soup.find_all("table", { "id" : "winter_in_plan_list" }).pop()
-    # trs = tab_zimnik.find_all('tr')
-    
-    # # Массив распарсенных значений из таблицы Переправа
-    # rows = []
-    # # Итерируем по таблице Переправа
-    # for tr in trs:
-    #     if len(tr.find_all('td'))==1: 
-    #         continue
-    #     else:
-    #         try:
-    #             row=[]
-    #             for i in range(0,4):
-    #                 cell = tr.find_all('td')[i].text.lstrip().rstrip().encode('utf8')
-    #                 row.append(cell)
-    #             rows.append(row) 
-    #         except:
-    #             pass
-                
-
-    # print 'Save zimniki to file...'
-    # write_to_excel(rows,prefix+'zimniki.xls')
+# # Подгружаем всю страницу КРУДОР
+# html = requests.get(pereprava_url, auth=('mchs_monitoring','kyDCc0')).content        
+# soup = BeautifulSoup(html, "html.parser")
 
 
-    # #************************ДТП**********************************************
-    # # Получаем объекты из таблицы ДТП
-    # tab_dtp = soup.find_all("table", { "id" : "dtp_list" }).pop()
-    # trs = tab_dtp.find_all('tr')
-    
-    # # Массив распарсенных значений из таблицы ДТП
-    # rows = []
-    # # Итерируем по таблице ДТП
-    # for tr in trs:
-    #     if len(tr.find_all('td'))==1: 
-    #         continue
-    #     else:
-    #         try:
-    #             row=[]
-    #             for i in range(0,13):
-    #                 cell = tr.find_all('td')[i].text.lstrip().rstrip().encode('utf8')
-    #                 row.append(cell)
-    #             rows.append(row) 
-    #         except:
-    #             pass
-                
+# #**************************ПЕРЕПРАВЫ************************************************
+# # Получаем объекты из таблицы Переправа
+# tab_pereprava = soup.find_all("table", { "id" : "bridges_in_plan_list" }).pop()
+# trs = tab_pereprava.find_all('tr')
 
-    # print 'Save DTP to file...'
-    # write_to_excel(rows,prefix+'dtp.xls')
+# # Массив распарсенных значений из таблицы Переправа
+# rows = []
+# # Итерируем по таблице Переправа
+# for tr in trs:
+#     if len(tr.find_all('td'))==1: 
+#         continue
+#     else:
+#         try:
+#             row=[]
+#             for i in range(0,8):
+#                 cell = tr.find_all('td')[i].text.lstrip().rstrip().encode('utf8')
+#                 row.append(cell)
+#             rows.append(row) 
+#         except:
+#             pass
+            
+
+# print 'Save pereprava to file...'
+# write_to_excel(rows,prefix+'pereprava.xls')
 
 
-    # #************************ЧС**********************************************
-    # # Получаем объекты из таблицы ЧС
-    # tab_chs = soup.find_all("table", { "id" : "chs_list" }).pop()
-    # trs = tab_chs.find_all('tr')
-    
-    # # Массив распарсенных значений из таблицы ЧС
-    # rows = []
-    # # Итерируем по таблице ЧС
-    # for tr in trs:
-    #     if len(tr.find_all('td'))==1: 
-    #         continue
-    #     else:
-    #         try:
-    #             row=[]
-    #             for i in range(0,12):
-    #                 cell = tr.find_all('td')[i].text.lstrip().rstrip().encode('utf8')
-    #                 row.append(cell)
-    #             rows.append(row) 
-    #         except:
-    #             pass
-                
 
-    # print 'Save CHS to file...'
-    # write_to_excel(rows,prefix+'chs.xls')
+# #*********************ЗИМНИКИ*****************************************************
+# # Получаем объекты из таблицы Зимники
+# tab_zimnik = soup.find_all("table", { "id" : "winter_in_plan_list" }).pop()
+# trs = tab_zimnik.find_all('tr')
+
+# # Массив распарсенных значений из таблицы Переправа
+# rows = []
+# # Итерируем по таблице Переправа
+# for tr in trs:
+#     if len(tr.find_all('td'))==1: 
+#         continue
+#     else:
+#         try:
+#             row=[]
+#             for i in range(0,4):
+#                 cell = tr.find_all('td')[i].text.lstrip().rstrip().encode('utf8')
+#                 row.append(cell)
+#             rows.append(row) 
+#         except:
+#             pass
+            
+
+# print 'Save zimniki to file...'
+# write_to_excel(rows,prefix+'zimniki.xls')
+
+
+# #************************ДТП**********************************************
+# # Получаем объекты из таблицы ДТП
+# tab_dtp = soup.find_all("table", { "id" : "dtp_list" }).pop()
+# trs = tab_dtp.find_all('tr')
+
+# # Массив распарсенных значений из таблицы ДТП
+# rows = []
+# # Итерируем по таблице ДТП
+# for tr in trs:
+#     if len(tr.find_all('td'))==1: 
+#         continue
+#     else:
+#         try:
+#             row=[]
+#             for i in range(0,13):
+#                 cell = tr.find_all('td')[i].text.lstrip().rstrip().encode('utf8')
+#                 row.append(cell)
+#             rows.append(row) 
+#         except:
+#             pass
+            
+
+# print 'Save DTP to file...'
+# write_to_excel(rows,prefix+'dtp.xls')
+
+
+# #************************ЧС**********************************************
+# # Получаем объекты из таблицы ЧС
+# tab_chs = soup.find_all("table", { "id" : "chs_list" }).pop()
+# trs = tab_chs.find_all('tr')
+
+# # Массив распарсенных значений из таблицы ЧС
+# rows = []
+# # Итерируем по таблице ЧС
+# for tr in trs:
+#     if len(tr.find_all('td'))==1: 
+#         continue
+#     else:
+#         try:
+#             row=[]
+#             for i in range(0,12):
+#                 cell = tr.find_all('td')[i].text.lstrip().rstrip().encode('utf8')
+#                 row.append(cell)
+#             rows.append(row) 
+#         except:
+#             pass
+            
+
+# print 'Save CHS to file...'
+# write_to_excel(rows,prefix+'chs.xls')
